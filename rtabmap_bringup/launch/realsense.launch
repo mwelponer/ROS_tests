@@ -1,0 +1,26 @@
+<launch>
+    <arg name="camera" default="d435i_camera"/>
+
+    <arg name="offline"          default="false"/>
+    <include unless="$(arg offline)" 
+        file="$(find realsense2_camera)/launch/rs_camera.launch">
+        <arg name="camera" value="$(arg camera)"/>	
+        <arg name="initial_reset" value="true" />
+	<arg name="publish_tf" value="true" />
+        <arg name="enable_gyro" value="true" />
+        <arg name="enable_accel" value="true" />
+        <arg name="align_depth" value="true" />
+        <arg name="linear_accel_cov" value="1.0" />
+        <arg name="tf_prefix" value="$(arg camera)" />
+
+<!-- 
+Setting unite_imu_method creates a new topic, imu, that replaces the default gyro and accel topics. The imu topic is published at the rate of the gyro. All the fields of the Imu message under the imu topic are filled out.
+
+- linear_interpolation: Every gyro message is attached by the accel message interpolated to the gyro's timestamp.
+- copy: Every gyro message is attached by the last accel message.
+ref. https://dev.intelrealsense.com/docs/ros-wrapper
+-->
+        <arg name="unite_imu_method" value="linear_interpolation" />
+
+    </include>
+</launch>    
