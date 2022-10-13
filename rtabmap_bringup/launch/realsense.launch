@@ -16,9 +16,14 @@
         <!--<arg name="initial_reset" value="true"/>--> <!--mike-->
         <arg name="publish_tf" value="true"/>
         <arg name="tf_prefix" value="$(arg camera)"/> <!--mike-->
-        <arg name="depth_fps"           default="30"/> <!--mike-->
-        <arg name="color_fps"           default="30"/> <!--mike-->
-        <arg name="gyro_fps"            default="-1"/> <!--mike-->
-        <arg name="accel_fps"           default="-1"/> <!--mike-->
+
+        <arg name="depth_width"         value="848"/>
+        <arg name="depth_height"        value="480"/>
+        <arg name="color_width"         value="848"/>
+        <arg name="color_height"        value="480"/>
+        <arg name="depth_fps"           value="15"/> <!--mike-->
+        <arg name="color_fps"           value="15"/> <!--mike-->
+        <arg name="gyro_fps"            value="400"/> <!--mike-->
+        <arg name="accel_fps"           value="250"/> <!--mike-->
     </include>
 </launch>    
