@@ -16,17 +16,18 @@
 #include <ctime>
 
 const bool VERBOSE_LOG = 1;
-const bool GRAPHICAL_USER_INTERFACE = 1;
+const bool GRAPHICAL_USER_INTERFACE = 0;
+const float WINDOW_OUTPUT_PERCENTAGE = 100;
 
-float NORMAL_SPEED = 0.2f;
-const float FACTOR_LINEAR = 0.2f;//0.003f;
-const float FACTOR_ANGULAR = 0.2f;
+float NORMAL_SPEED = 0.3f;
+const float FACTOR_LINEAR = 0.2f; //0.003f;
+const float FACTOR_ANGULAR = 0.2f; 
 
 const int SCANNING_GRANULARITY = 31;
-const int NUMBER_OF_SKIPPED_SIDE_BANDS = 5;//9
+const int NUMBER_OF_SKIPPED_SIDE_BANDS = 2;
 const int FILTER_WINDOW_SIZE = 8;
 
-const float STEARING_DISTANCE = 0.9f;
+const float STEARING_DISTANCE = 0.4f;
 const float GRAY_MAX_PIXEL_PERCENTAGE = 50; //???
 
 const float IMPACT_DISTANCE = 0.03f;
@@ -246,7 +247,7 @@ public:
    */
   void imageCallback(const sensor_msgs::ImageConstPtr& msg)
   {
-    std::cout << "imageCallback()" << std::endl;
+    //std::cout << "imageCallback()" << std::endl;
     
     if (msg == NULL) return;
     if (evenFrames) { evenFrames = 0; return; } else { evenFrames = 1; } // skip even frames
@@ -310,8 +311,8 @@ public:
       cv::Mat small_vis, small_met;      
       int height = depth_vis.rows;
       int width = depth_vis.cols;
-      small_vis = resizeFramePercentage(depth_vis, 50); //resizeFrameWidth(depth_vis, 155);
-      small_met = resizeFramePercentage(depth_met, 50); //resizeFrameWidth(depth_met, 155);
+      small_vis = resizeFramePercentage(depth_vis, WINDOW_OUTPUT_PERCENTAGE); //resizeFrameWidth(depth_vis, 155);
+      small_met = resizeFramePercentage(depth_met, WINDOW_OUTPUT_PERCENTAGE); //resizeFrameWidth(depth_met, 155);
       int height_small = small_vis.rows;
       int width_small = small_vis.cols;
 
@@ -386,7 +387,7 @@ public:
 
           if(count_spinning == spinningFrames) // exit stuck
           {
-            //std::cout << std::endl << "stuck FALSE!!! " << std::endl; 
+            std::cout << std::endl << "stuck FALSE!!! " << std::endl; 
             count_backward = -1;
             count_spinning = -1;
 
@@ -403,6 +404,7 @@ public:
         
         count_backward++;
 
+        std::cout << "count_backward: " << count_backward << ", count_spinning: " << count_spinning << std::endl;
         move_robot(height, width, winner.x, winner.y, NORMAL_SPEED, NORMAL_SPEED);
         return;
       }
@@ -529,55 +531,76 @@ public:
       if(wall)
       {
         if (VERBOSE_LOG)
-          ROS_WARN_STREAM(std::setprecision(2) << "WALL         L_gray: " << leftGrayPercentage << "% (" << leftGrayPixTotalCount << ")\tR_gray: " << rightGrayPercentage << "% (" << rightGrayPixTotalCount << ")");
+        {    
+          ROS_WARN_STREAM(std::setprecision(2) << "WALL         L_gray: " << leftGrayPercentage << "% (" 
+                  << leftGrayPixTotalCount << ")\tR_gray: " << rightGrayPercentage << "% (" << rightGrayPixTotalCount << ")");
+        }
+          
         winner.x = -1;
         winner.y = -1;
         //std::cout << "THE ROVER IS STUCK !!!" << std::endl;
         //stuck = true;
       }
     
-      //if(scan.grayPixelCount[leftIndex] < GRAY_MIN_PIXEL_COUNT && scan.grayPixelCount[rightIndex] < GRAY_MIN_PIXEL_COUNT)
       if( leftGrayPercentage < GRAY_MAX_PIXEL_PERCENTAGE && rightGrayPercentage < GRAY_MAX_PIXEL_PERCENTAGE)
       {
         if (VERBOSE_LOG)
-          ROS_INFO_STREAM(std::setprecision(2) << "FORWARD      L_gray: " << leftGrayPercentage << "% (" << leftGrayPixTotalCount << ")\tR_gray: " << rightGrayPercentage << "% (" << rightGrayPixTotalCount << ")");
-        
+        {
+          ROS_INFO_STREAM(std::setprecision(2) << "FORWARD      L_gray: " << leftGrayPercentage << "% (" 
+                  << leftGrayPixTotalCount << ")\tR_gray: " << rightGrayPercentage << "% (" << rightGrayPixTotalCount << ")");
+        }
+
         linear = 1;
         winner.x = (int)width/2;
         wall = false;
       }      
-      //else if(!wall && scan.grayPixelCount[leftIndex] < GRAY_MIN_PIXEL_COUNT && scan.grayPixelCount[rightIndex] > GRAY_MIN_PIXEL_COUNT)
       else if( !wall && leftGrayPercentage < GRAY_MAX_PIXEL_PERCENTAGE && rightGrayPercentage > GRAY_MAX_PIXEL_PERCENTAGE)
       {
         if (VERBOSE_LOG)
-          ROS_INFO_STREAM(std::setprecision(2) << "LEFT >>>>>>> L_gray: " << leftGrayPercentage << "% (" << leftGrayPixTotalCount << ")\tR_gray: " << rightGrayPercentage << "% (" << rightGrayPixTotalCount << ")");
+        {    
+          ROS_INFO_STREAM(std::setprecision(2) << "LEFT >>>>>>> L_gray: " << leftGrayPercentage << "% (" 
+                  << leftGrayPixTotalCount << ")\tR_gray: " << rightGrayPercentage << "% (" << rightGrayPixTotalCount << ")");
+        }
+       
         winner.x = centroid_x_L; //(int)width*2/9;
       }
-      //else if(!wall && scan.grayPixelCount[leftIndex] > GRAY_MIN_PIXEL_COUNT && scan.grayPixelCount[rightIndex] < GRAY_MIN_PIXEL_COUNT)
       else if( !wall && leftGrayPercentage > GRAY_MAX_PIXEL_PERCENTAGE 
           && rightGrayPercentage < GRAY_MAX_PIXEL_PERCENTAGE)
       {
         if (VERBOSE_LOG)
-          ROS_INFO_STREAM(std::setprecision(2) << "RIGHT <<<<<< L_gray: " << leftGrayPercentage << "% (" << leftGrayPixTotalCount << ")\tR_gray: " << rightGrayPercentage << "% (" << rightGrayPixTotalCount << ")");
+        {    
+          ROS_INFO_STREAM(std::setprecision(2) << "RIGHT <<<<<< L_gray: " << leftGrayPercentage << "% (" 
+                  << leftGrayPixTotalCount << ")\tR_gray: " << rightGrayPercentage << "% (" << rightGrayPixTotalCount << ")");
+        }
+        
         winner.x = centroid_x_R; //(int)width*7/9;
       }
       else
       {
         if(scan.filteredSlicesAvg[15] <= IMPACT_DISTANCE) 
           wall = true; 
+        
         else 
         {
-          if(leftGrayPercentage > rightGrayPercentage)
+          //ROS_INFO_STREAM("cazzoculo figa");
+          
+          //if(leftGrayPercentage > rightGrayPercentage)
             winner.x = centroid_x_R;
-          else
-            winner.x = centroid_x_L;
+          //else
+          //  winner.x = centroid_x_L; 
 
           move_robot(height, width, winner.x, winner.y, linear, NORMAL_SPEED);
+          
           return;
         }
+        
 
         if (VERBOSE_LOG)
-          ROS_WARN_STREAM(std::setprecision(2) << "STOP         L_gray: " << leftGrayPercentage << "% (" << leftGrayPixTotalCount << ")\tR_gray: " << rightGrayPercentage << "% (" << rightGrayPixTotalCount << ")");
+        {
+          ROS_WARN_STREAM(std::setprecision(2) << "STOP         L_gray: " << leftGrayPercentage << "% (" 
+                  << leftGrayPixTotalCount << ")\tR_gray: " << rightGrayPercentage << "% (" << rightGrayPixTotalCount << ")");
+        }
+
         winner.x = -1;
         winner.y = -1;
       }  
@@ -594,7 +617,7 @@ public:
   void move_robot(int height, int width, int cx, int cy, float linear_vel_base, float angular_vel_base)
   {
     //It move the Robot based on the Centroid Data
-    std::cout << "  move_robot()" << std::endl;
+    //std::cout << "  move_robot()" << std::endl;
     twist_msg.linear.x = linear_vel_base;
     twist_msg.angular.z = angular_vel_base;
 
