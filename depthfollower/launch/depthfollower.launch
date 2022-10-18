@@ -1,4 +1,0 @@
-<launch>
-    <node pkg="depthfollower" type="depth_follower" name="depth_follower">
-    </node>
-</launch>

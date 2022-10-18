@@ -15,32 +15,32 @@
 #include <chrono>
 #include <ctime>
 
-const bool VERBOSE_LOG = 0;
-const bool GRAPHICAL_USER_INTERFACE = 0;
+const bool VERBOSE_LOG = 1;
+const bool GRAPHICAL_USER_INTERFACE = 1;
 
 float NORMAL_SPEED = 0.2f;
 const float FACTOR_LINEAR = 0.2f;//0.003f;
 const float FACTOR_ANGULAR = 0.2f;
 
 const int SCANNING_GRANULARITY = 31;
-const int NUMBER_OF_SKIPPED_SIDE_BANDS = 9;
+const int NUMBER_OF_SKIPPED_SIDE_BANDS = 5;//9
 const int FILTER_WINDOW_SIZE = 8;
 
-const float STEARING_DISTANCE = 0.7f;
+const float STEARING_DISTANCE = 0.9f;
 const float GRAY_MAX_PIXEL_PERCENTAGE = 50; //???
 
 const float IMPACT_DISTANCE = 0.03f;
 const float BLACK_MAX_PIXEL_PERCENTAGE = 3.14f;
 
 const int FRAMES_PER_SECOND = 7;
-const int BACKWARD_TIME = 2;
+const int BACKWARD_TIME = 4;
 const int SPINNING_TIME = 4;
 const int STUCKING_TIME = 1;
 
 //const int GRAY_MIN_PIXEL_COUNT = 50;
 
-static const char* REALSENSE_CAMERA_COLOR_TOPIC = "/camera/color/image_raw";
-static const char* REALSENSE_CAMERA_DEPTH_TOPIC = "/camera/depth/image_rect_raw";
+static const char* REALSENSE_CAMERA_COLOR_TOPIC = "/d435i_camera/color/image_raw";
+static const char* REALSENSE_CAMERA_DEPTH_TOPIC = "/d435i_camera/depth/image_rect_raw";
 bool evenFrames = 1;
 
 struct Scan
@@ -122,7 +122,7 @@ public:
   DepthFollower(int argc, char **argv)
       : it(nh)
   {
-    //std::cout << "DepthFollower()" << std::endl;
+    std::cout << "DepthFollower()" << std::endl;
 
     //t = std::chrono::steady_clock::now();
     timeFrame = 0;
@@ -162,7 +162,7 @@ public:
     cmd_vel_pub = nh.advertise<geometry_msgs::Twist>("/cmd_vel", 5);
     int rate = 25;
     ros::Rate loop_rate(rate);
-    //std::cout << "..DepthFollower() DONE" << std::endl;
+    std::cout << "..DepthFollower() DONE" << std::endl;
   }
 
   /**
@@ -170,7 +170,7 @@ public:
    */
   ~DepthFollower()
   {
-    cv::destroyWindow("view");
+    //cv::destroyWindow("view");
   }
 
   Scan scanFrame(const cv::Mat& frame)
@@ -246,7 +246,7 @@ public:
    */
   void imageCallback(const sensor_msgs::ImageConstPtr& msg)
   {
-    //std::cout << "imageCallback()" << std::endl;
+    std::cout << "imageCallback()" << std::endl;
     
     if (msg == NULL) return;
     if (evenFrames) { evenFrames = 0; return; } else { evenFrames = 1; } // skip even frames
@@ -310,8 +310,8 @@ public:
       cv::Mat small_vis, small_met;      
       int height = depth_vis.rows;
       int width = depth_vis.cols;
-      small_vis = resizeFrameWidth(depth_vis, 155); //resizeFramePercentage(depth_vis, 20);
-      small_met = resizeFrameWidth(depth_met, 155); //resizeFramePercentage(depth_met, 20);
+      small_vis = resizeFramePercentage(depth_vis, 50); //resizeFrameWidth(depth_vis, 155);
+      small_met = resizeFramePercentage(depth_met, 50); //resizeFrameWidth(depth_met, 155);
       int height_small = small_vis.rows;
       int width_small = small_vis.cols;
 
@@ -594,7 +594,7 @@ public:
   void move_robot(int height, int width, int cx, int cy, float linear_vel_base, float angular_vel_base)
   {
     //It move the Robot based on the Centroid Data
-    //std::cout << "  move_robot()" << std::endl;
+    std::cout << "  move_robot()" << std::endl;
     twist_msg.linear.x = linear_vel_base;
     twist_msg.angular.z = angular_vel_base;
 
@@ -643,7 +643,7 @@ public:
  */
 int main(int argc, char **argv)
 {
-  //std::cout << "main()" << std::endl;
+  std::cout << "main()" << std::endl;
 
   ros::init(argc, argv, "depth_follower_start");
   DepthFollower df(argc, argv);
