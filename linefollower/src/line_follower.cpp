@@ -96,7 +96,7 @@ public:
    */
   void imageCallback(const sensor_msgs::ImageConstPtr& msg)
   {
-    //std::cout << "  imageCallback()" << std::endl;
+    std::cout << "  imageCallback()" << std::endl;
 
     if (evenFrames)
     {
@@ -341,7 +341,7 @@ int main(int argc, char **argv)
 {
   std::cout << "main()" << std::endl;
 
-  ros::init(argc, argv, "line_follower_start");
+  ros::init(argc, argv, "line_follower");
   struct RgbColor rgbToTrack{45, 149, 62};
   LineFollower lf(argc, argv, rgbToTrack, 40.0f);
   lf.loop();
