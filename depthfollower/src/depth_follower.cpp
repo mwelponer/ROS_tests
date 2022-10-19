@@ -35,7 +35,7 @@ const float BLACK_MAX_PIXEL_PERCENTAGE = 3.14f;
 
 const int FRAMES_PER_SECOND = 7;
 const int BACKWARD_TIME = 4;
-const int SPINNING_TIME = 4;
+const int SPINNING_TIME = 14;
 const int STUCKING_TIME = 1;
 
 //const int GRAY_MIN_PIXEL_COUNT = 50;
