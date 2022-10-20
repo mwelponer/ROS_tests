@@ -14,6 +14,7 @@
 
 #include <chrono>
 #include <ctime>
+#include <random>
 
 const bool VERBOSE_LOG = 1;
 const bool GRAPHICAL_USER_INTERFACE = 0;
@@ -30,7 +31,7 @@ const int FILTER_WINDOW_SIZE = 8;
 const float STEARING_DISTANCE = 0.4f;
 const float GRAY_MAX_PIXEL_PERCENTAGE = 50; //???
 
-const float IMPACT_DISTANCE = 0.03f;
+const float IMPACT_DISTANCE = 0.02f;
 const float BLACK_MAX_PIXEL_PERCENTAGE = 3.14f;
 
 const int FRAMES_PER_SECOND = 7;
@@ -104,6 +105,8 @@ private:
   float valuesBuffer[SCANNING_GRANULARITY][FILTER_WINDOW_SIZE];
 
   bool wall = false;
+  bool rand_direction_is_set = false;
+  bool goRight = false;
 
   std::chrono::time_point<std::chrono::steady_clock> t;
   int timeFrame;
@@ -553,6 +556,7 @@ public:
         linear = 1;
         winner.x = (int)width/2;
         wall = false;
+        rand_direction_is_set = false;
       }      
       else if( !wall && leftGrayPercentage < GRAY_MAX_PIXEL_PERCENTAGE && rightGrayPercentage > GRAY_MAX_PIXEL_PERCENTAGE)
       {
@@ -582,13 +586,18 @@ public:
         
         else 
         {
-          //ROS_INFO_STREAM("cazzoculo figa");
+          if(!rand_direction_is_set){
+            goRight = rand() % 2 == 1;
+            rand_direction_is_set = true; 
+          }
           
           //if(leftGrayPercentage > rightGrayPercentage)
+          if(goRight)
             winner.x = centroid_x_R;
-          //else
-          //  winner.x = centroid_x_L; 
+          else
+            winner.x = centroid_x_L; 
 
+          ROS_WARN_STREAM("cazzoculo figa random is: " << goRight);
           move_robot(height, width, winner.x, winner.y, linear, NORMAL_SPEED);
           
           return;
@@ -644,7 +653,13 @@ public:
       }
 
       twist_msg.linear.x = 0.0;
-      twist_msg.angular.z = angular_vel_base * 2.0;
+      //auto gen = std::bind(std::uniform_int_distribution<>(0,1), std::default_random_engine());
+      //bool b = gen();
+
+      if(goRight)
+        twist_msg.angular.z = angular_vel_base * 2.0;
+      else
+        twist_msg.angular.z = angular_vel_base * -2.0;
     }
 
     cmd_vel_pub.publish(twist_msg);
