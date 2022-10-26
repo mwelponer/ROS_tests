@@ -13,7 +13,7 @@
 
 const float FACTOR_LINEAR = 0.001f;
 const float FACTOR_ANGULAR = 0.2f;
-const bool VERBOSE_LOG = 1;
+const bool VERBOSE_LOG = 0;
 bool evenFrames = 1;
 static const char* LEO_CAMERA_TOPIC = "/camera/image_raw";
 
@@ -88,7 +88,7 @@ public:
    */
   ~LineFollower()
   {
-    cv::destroyWindow("view");
+    //cv::destroyWindow("view");
   }
 
   /**
@@ -124,9 +124,9 @@ public:
     int height = cv_image.rows;
     int width = cv_image.cols;
     cv::Mat small_frame;
-    cv::resize(cv_image, small_frame, cv::Size(int(width/100*20), int(height/100*20)));
-    //cv::imshow("small_frame", small_frame);
-    //cv::waitKey(30);
+    cv::resize(cv_image, small_frame, cv::Size(int(width/100*50), int(height/100*50)));
+    cv::imshow("small_frame", small_frame);
+    cv::waitKey(30);
 
     // crop out upper part
     cv::Mat crop_img;
@@ -135,12 +135,12 @@ public:
     cv::Rect crop_region(0, int(height*2/5), width, int(height*3/5));
     crop_img = small_frame(crop_region);
     cv::imshow("crop", crop_img);
-    //cv::waitKey(30);
+    cv::waitKey(30);
 
     // Convert the image from RGB to HSV (more stable versus lighting conditions)
     cv::Mat hsv;
     cvtColor(crop_img, hsv, CV_BGR2HSV);
-    cv::imshow("hsv", hsv);
+    // MIKE cv::imshow("hsv", hsv);
     //cv::waitKey(30);
 
     // Convert rgb color to track to hsv and find the lower and upper values
@@ -167,7 +167,7 @@ public:
                                 upper_color.at<cv::Vec3b>(0,0)[2]),
                                 mask);
     cv::imshow("mask", mask);
-    //cv::waitKey(30);
+    cv::waitKey(30);
 
     // convert to 3 channels
     cv::cvtColor(mask, mask, CV_GRAY2BGR);
@@ -179,8 +179,8 @@ public:
     // Bitwise-AND mask and original image
     cv::Mat masked_image;
     cv::bitwise_and(crop_img, mask, masked_image);
-    cv::imshow("masked_image", masked_image);
-    //cv::waitKey(30);
+    // MIKE cv::imshow("masked_image", masked_image);
+    // MIKE cv::waitKey(30);
 
     // Detect the contours
     //Prepare the image for findContours
@@ -207,14 +207,14 @@ public:
             cv::drawContours(contourImage, contours, idx, colors[idx % 3]);
         }
         cv::imshow("Contours", contourImage);
-        //cv::waitKey(30);
+        cv::waitKey(30);
       }
     }
     else
     {
       // move the robot
       move_robot(height, width, winner.x, winner.y, 0.3f, 0.3f);
-      cv::waitKey(30);
+      //cv::waitKey(30);
       return;
     }
 
@@ -272,7 +272,7 @@ public:
         index += 1;
       }
 
-      std::cout << "candidate_index: " << candidate_index << std::endl;
+      //std::cout << "candidate_index: " << candidate_index << std::endl;
 
       winner = centers[candidate_index];
       if (VERBOSE_LOG)
@@ -281,7 +281,7 @@ public:
 
     // move the robot
     move_robot(height, width, winner.x, winner.y, 0.3f, 0.3f);
-    cv::waitKey(30);
+    //cv::waitKey(30);
   }
 
   /**
@@ -318,8 +318,6 @@ public:
       twist_msg.angular.z = angular_vel_base * 2.0;
     }
 
-
-
     cmd_vel_pub.publish(twist_msg);
   }
 
@@ -339,6 +337,7 @@ public:
  */
 int main(int argc, char **argv)
 {
+  ROS_INFO_STREAM("main()");
   std::cout << "main()" << std::endl;
 
   ros::init(argc, argv, "line_follower");

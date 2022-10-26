@@ -597,7 +597,7 @@ public:
           else
             winner.x = centroid_x_L; 
 
-          ROS_WARN_STREAM("cazzoculo figa random is: " << goRight);
+          //ROS_WARN_STREAM("cazzoculo figa random is: " << goRight);
           move_robot(height, width, winner.x, winner.y, linear, NORMAL_SPEED);
           
           return;
