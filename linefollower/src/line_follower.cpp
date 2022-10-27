@@ -10,15 +10,13 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <cv_bridge/cv_bridge.h>
 
+const bool VERBOSE_LOG = 1;
+const bool GRAPHICAL_USER_INTERFACE = 1;
+const float WINDOW_OUTPUT_PERCENTAGE = 20;
 
-const bool VERBOSE_LOG = 0;
-const bool GRAPHICAL_USER_INTERFACE = 0;
-const float WINDOW_OUTPUT_PERCENTAGE = 50;
-
-float NORMAL_SPEED = 0.3f;
-const float FACTOR_LINEAR = 0.001f; // 0.001f
-const float FACTOR_ANGULAR = 0.2f; // 0.2f
-
+const float NORMAL_SPEED = 0.3f;
+const float FACTOR_LINEAR = 0.001f;
+const float FACTOR_ANGULAR = 0.2f;
 static const char* LEO_CAMERA_TOPIC = "/camera/image_raw";
 
 struct RgbColor
@@ -40,6 +38,8 @@ struct RgbColor
 class LineFollower
 {
 private:
+  struct RgbColor m_rgbToTrack;
+  float m_colorErrorPercentage;
   /**
    * NodeHandle is the main access point to communications with the ROS system.
    * The first NodeHandle constructed will fully initialize this node, and the last
@@ -49,13 +49,9 @@ private:
   image_transport::ImageTransport it;
   image_transport::Subscriber sub;
 
+  bool evenFrames = 1;
   geometry_msgs::Twist twist_msg;
   ros::Publisher cmd_vel_pub;
-
-  bool evenFrames = 1;
-
-  struct RgbColor m_rgbToTrack;
-  float m_colorErrorPercentage;  
   float speed;
 
 
@@ -91,7 +87,8 @@ public:
     cmd_vel_pub = nh.advertise<geometry_msgs::Twist>("/cmd_vel", 5);
     int rate = 25;
     ros::Rate loop_rate(rate);
-    if(VERBOSE_LOG) std::cout << "..LineFollower() DONE" << std::endl;    
+
+    if(VERBOSE_LOG) std::cout << "..LineFollower() DONE" << std::endl;
   }
 
   /**
@@ -111,7 +108,6 @@ public:
    */
   void imageCallback(const sensor_msgs::ImageConstPtr& msg)
   {
-
     if (msg == NULL) return;
     if (msg->encoding != "bgr8") return;
     if (evenFrames) { evenFrames = 0; return; } else { evenFrames = 1; } // skip even frames
@@ -121,7 +117,6 @@ public:
 
     try
     {
-      //cv::imshow( "view", cv_bridge::toCvShare(msg, "bgr8")->image );
       cv_image = cv_bridge::toCvShare(msg, "bgr8")->image;
     }
     catch (cv_bridge::Exception& e)
@@ -130,19 +125,18 @@ public:
       return;
     }
 
+    //cv::imshow("view", cv_image);
+    //cv::waitKey(30);
+
     //////////////////////////////////
     // resize into a smaller 20% image, and crop upper part to make it faster
     int height = cv_image.rows;
     int width = cv_image.cols;
     cv::Mat small_frame;
-    cv::resize(cv_image, small_frame, cv::Size(int(width/100 * WINDOW_OUTPUT_PERCENTAGE), 
-        int(height/100 * WINDOW_OUTPUT_PERCENTAGE)));
-    if(GRAPHICAL_USER_INTERFACE)
-    {
-        //cv::imshow("small_frame", small_frame);
-        //cv::waitKey(1);
-    }
-
+    cv::resize(cv_image, small_frame, cv::Size(int(width/100*WINDOW_OUTPUT_PERCENTAGE)
+                , int(height/100*WINDOW_OUTPUT_PERCENTAGE)));
+    //if(GRAPHICAL_USER_INTERFACE) cv::imshow("small_frame", small_frame);
+    //cv::waitKey(30);
 
     //////////////////////////////////
     // crop out upper part
@@ -151,28 +145,16 @@ public:
     width = small_frame.cols;
     cv::Rect crop_region(0, int(height*2/5), width, int(height*3/5));
     crop_img = small_frame(crop_region);
+    if(GRAPHICAL_USER_INTERFACE) cv::imshow("crop", crop_img);
+    //cv::waitKey(30);
 
-    if(GRAPHICAL_USER_INTERFACE)
-    {
-      cv::imshow("crop", crop_img);
-      //cv::waitKey(1);
-    }
-
-
-    
     //////////////////////////////////
     // Convert the image from RGB to HSV (more stable versus lighting conditions)
     cv::Mat hsv;
     cvtColor(crop_img, hsv, CV_BGR2HSV);
-    
-    if(GRAPHICAL_USER_INTERFACE)
-    {
-      cv::imshow("hsv", hsv);
-      //cv::waitKey(1);
-    }
+    //if(GRAPHICAL_USER_INTERFACE) cv::imshow("hsv", hsv);
+    //cv::waitKey(30);
 
-
-    
     //////////////////////////////////
     // Convert rgb color to track to hsv and find the lower and upper values
     cv::Mat hsvToTrack = m_rgbToTrack.toHsv();
@@ -197,35 +179,23 @@ public:
                                 upper_color.at<cv::Vec3b>(0,0)[1],
                                 upper_color.at<cv::Vec3b>(0,0)[2]),
                                 mask);
+    //if(GRAPHICAL_USER_INTERFACE) cv::imshow("mask", mask);
+    //cv::waitKey(30);
 
-    if(GRAPHICAL_USER_INTERFACE)
-    {
-      cv::imshow("mask", mask);
-      //cv::waitKey(1);
-    }
-
-
-    
     //////////////////////////////////
     // convert to 3 channels
     cv::cvtColor(mask, mask, CV_GRAY2BGR);
-    //std::cout << "crop size: " << crop_img.cols << ", " << crop_img.rows << std::endl;
-    //std::cout << "crop type: " << crop_img.type() << std::endl;
-    //std::cout << "mask size: " << mask.cols << ", " << mask.rows << std::endl;
-    //std::cout << "mask type: " << mask.type() << std::endl;
+    /*std::cout << "crop size: " << crop_img.cols << ", " << crop_img.rows << std::endl;
+    std::cout << "crop type: " << crop_img.type() << std::endl;
+    std::cout << "mask size: " << mask.cols << ", " << mask.rows << std::endl;
+    std::cout << "mask type: " << mask.type() << std::endl;*/
 
     //////////////////////////////////
     // Bitwise-AND mask and original image
     cv::Mat masked_image;
     cv::bitwise_and(crop_img, mask, masked_image);
-
-    if(GRAPHICAL_USER_INTERFACE)
-    {
-      cv::imshow("masked_image", masked_image);
-      //cv::waitKey(1);
-    }
-
-
+    if(GRAPHICAL_USER_INTERFACE) cv::imshow("masked_image", masked_image);
+    //cv::waitKey(30);
     
     //////////////////////////////////
     // Detect the contours
@@ -236,7 +206,8 @@ public:
     std::vector<std::vector<cv::Point>> contours;
     cv::Point winner(-1, -1);
     cv::findContours(mask.clone(), contours, CV_RETR_CCOMP, CV_CHAIN_APPROX_TC89_L1);
-    if (VERBOSE_LOG) ROS_INFO_STREAM("  contours: " << contours.size());
+    if (VERBOSE_LOG)
+      ROS_INFO_STREAM("  contours: " << contours.size());
 
     if (contours.size() > 0)
     {
@@ -251,24 +222,18 @@ public:
         for (size_t idx = 0; idx < contours.size(); idx++) {
             cv::drawContours(contourImage, contours, idx, colors[idx % 3]);
         }
-        if(GRAPHICAL_USER_INTERFACE)
-        {
-          cv::imshow("contours", contourImage);
-          //cv::waitKey(1);
-        }
+        //if(GRAPHICAL_USER_INTERFACE) cv::imshow("Contours", contourImage);
+        //cv::waitKey(30);
       }
     }
     else
     {
       // move the robot
-      move_robot(height, width, winner.x, winner.y, speed, 0.3f);
-      cv::waitKey(1); 
-
+      move_robot(height, width, winner.x, winner.y, 0.3f, 0.3f);
+      cv::waitKey(30);
       return;
     }
 
-
-    
     //////////////////////////////////
     // Find the centers of the contours
     std::vector<cv::Moments> mu(contours.size());
@@ -289,10 +254,11 @@ public:
       //std::cout << "(" << int(M10/M00) << ", " << int(M01/M00) << ")" << std::endl;
     }
     if (VERBOSE_LOG)
+    {
       for(int i=0; i<centers.size(); i++)
         ROS_INFO_STREAM("  center [" << centers[i].x << ", " << centers[i].y << "]");
-    
-    
+    }
+
     //////////////////////////////////
     // find the most centered & close centroid
     int index = 0; int candidate_index = 0;
@@ -324,16 +290,17 @@ public:
         index += 1;
       }
 
-      if (VERBOSE_LOG) std::cout << "candidate centroid index: " << candidate_index << std::endl;
+      std::cout << "candidate_index: " << candidate_index << std::endl;
 
       winner = centers[candidate_index];
       if (VERBOSE_LOG)
-        ROS_INFO_STREAM("    centroid [" << winner.x << ", " << winner.y << "]");
+        ROS_INFO_STREAM("    winner [" << winner.x << ", " << winner.y << "]");
     }
 
-    move_robot(height, width, winner.x, winner.y, speed, 0.3f);
-
-    cv::waitKey(1); 
+    //////////////////////////////////
+    // move the robot
+    move_robot(height, width, winner.x, winner.y, 0.3f, 0.3f);
+    cv::waitKey(30);
   }
 
   /**
@@ -342,7 +309,7 @@ public:
   void move_robot(int height, int width, int cx, int cy, float linear_vel_base, float angular_vel_base)
   {
     //It move the Robot based on the Centroid Data
-    //std::cout << "  move_robot()" << std::endl;
+    std::cout << "  move_robot()" << std::endl;
     twist_msg.linear.x = linear_vel_base;
     twist_msg.angular.z = angular_vel_base;
 
@@ -395,7 +362,7 @@ int main(int argc, char **argv)
   struct RgbColor rgbToTrack{45, 149, 62};
   LineFollower lf(argc, argv, rgbToTrack, 40.0f);
   lf.loop();
-  cv::destroyWindow("view");
 
   return 0;
 }
+
