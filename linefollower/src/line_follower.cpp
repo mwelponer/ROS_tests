@@ -12,7 +12,7 @@
 
 const bool VERBOSE_LOG = 1;
 const bool GRAPHICAL_USER_INTERFACE = 1;
-const float WINDOW_OUTPUT_PERCENTAGE = 20;
+const float WINDOW_OUTPUT_PERCENTAGE = 30;
 
 const float NORMAL_SPEED = 0.3f;
 const float FACTOR_LINEAR = 0.001f;

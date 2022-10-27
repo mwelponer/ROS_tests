@@ -17,18 +17,18 @@
 #include <random>
 
 const bool VERBOSE_LOG = 1;
-const bool GRAPHICAL_USER_INTERFACE = 0;
-const float WINDOW_OUTPUT_PERCENTAGE = 30;
+const bool GRAPHICAL_USER_INTERFACE = 1;
+const float WINDOW_OUTPUT_PERCENTAGE = 40;
 
-float NORMAL_SPEED = 0.3f;
+float NORMAL_SPEED = 0.2f;
 const float FACTOR_LINEAR = 0.2f; //0.003f;
 const float FACTOR_ANGULAR = 0.2f; 
 
 const int SCANNING_GRANULARITY = 31;
-const int NUMBER_OF_SKIPPED_SIDE_BANDS = 2;
+const int NUMBER_OF_SKIPPED_SIDE_BANDS = 1;
 const int FILTER_WINDOW_SIZE = 8;
 
-const float STEARING_DISTANCE = 0.4f;
+const float STEARING_DISTANCE = 0.5f;
 const float GRAY_MAX_PIXEL_PERCENTAGE = 50; //???
 
 const float IMPACT_DISTANCE = 0.02f;
@@ -255,370 +255,313 @@ public:
     
     if (msg == NULL) return;
     if (evenFrames) { evenFrames = 0; return; } else { evenFrames = 1; } // skip even frames
-    // timeFrame = (timeFrame+1) % 15;
-    // if(timeFrame != 0) return;
-
-    //if (VERBOSE_LOG)
-    //{
-      //auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t).count();
-      //ROS_INFO_STREAM( elapsed << "ms elapsed since last imageCallback(), timeFrame: " << timeFrame);
-      //t = std::chrono::steady_clock::now();
-    //}
 
     cv::Mat depth_met; // 16bit metric depth
     cv::Mat depth_vis; // 8bit depth for visualization
-
     //std::cout << "encoding: " << msg->encoding << std::endl;
     
-    if (msg->encoding == "16UC1")
+    if (msg->encoding != "16UC1") return;
+    
+    cv_bridge::CvImagePtr cv_depth;
+    try {
+      cv_depth = cv_bridge::toCvCopy(msg);
+    }
+    catch (cv_bridge::Exception& e) {
+      ROS_ERROR("cv_bridge exception: %s", e.what());
+      return;
+    }
+
+    depth_met = cv::Mat(cv_depth->image.rows, cv_depth->image.cols, CV_16UC1);
+    depth_vis = cv::Mat(cv_depth->image.rows, cv_depth->image.cols, CV_8UC1);
+
+    for(size_t i = 0; i < cv_depth->image.rows; i++)
     {
-      cv_bridge::CvImagePtr cv_depth;
-      try {
-        cv_depth = cv_bridge::toCvCopy(msg);
-      }
-      catch (cv_bridge::Exception& e) {
-        ROS_ERROR("cv_bridge exception: %s", e.what());
-        return;
-      }
+      unsigned short* Di = cv_depth->image.ptr<unsigned short>(i);
+      unsigned short* Ii = depth_met.ptr<unsigned short>(i);
 
-      depth_met = cv::Mat(cv_depth->image.rows, cv_depth->image.cols, CV_16UC1);
-      depth_vis = cv::Mat(cv_depth->image.rows, cv_depth->image.cols, CV_8UC1);
-
-      for(size_t i = 0; i < cv_depth->image.rows; i++)
+      char* Ivi = depth_vis.ptr<char>(i);
+      for(size_t j = 0; j < cv_depth->image.cols; j++)
       {
-        unsigned short* Di = cv_depth->image.ptr<unsigned short>(i);
-        unsigned short* Ii = depth_met.ptr<unsigned short>(i);
-
-        char* Ivi = depth_vis.ptr<char>(i);
-        for(size_t j = 0; j < cv_depth->image.cols; j++)
+        if(Di[j] > 0.0f)
         {
-          if(Di[j] > 0.0f)
-          {
-            Ii[j] = Di[j];
-            Ivi[j] = (char) (255*((Di[j] / 1000.0)/(5.5))); // some suitable values.. => For visualization
-          }
-          else
-          {
-            Ii[j] = 0.0f;
-            Ivi[j] = 0;
-          }
+          Ii[j] = Di[j];
+          Ivi[j] = (char) (255*((Di[j] / 1000.0)/(5.5))); // some suitable values.. => For visualization
+        }
+        else
+        {
+          Ii[j] = 0.0f;
+          Ivi[j] = 0;
         }
       }
+    }
+    //cv::imshow("original", depth_vis);
+    //cv::waitKey(1);
+    //std::cout << "original: " << depth_vis.cols << "x" << depth_vis.rows << std::endl;
 
-      //cv::imshow("original", depth_vis);
+    //////////////////////////////////
+    // resize into a smaller 20% image
+    cv::Mat small_vis, small_met;      
+    int height = depth_vis.rows;
+    int width = depth_vis.cols;
+    small_vis = resizeFramePercentage(depth_vis, WINDOW_OUTPUT_PERCENTAGE); //resizeFrameWidth(depth_vis, 155);
+    small_met = resizeFramePercentage(depth_met, WINDOW_OUTPUT_PERCENTAGE); //resizeFrameWidth(depth_met, 155);
+    int height_small = small_vis.rows;
+    int width_small = small_vis.cols;
+    std::string title = "";
+
+    if(GRAPHICAL_USER_INTERFACE)
+    {
+      // visualize rectangle
+      cv::rectangle(small_vis, cv::Point(0,0), cv::Point(width_small-1, int(height_small/2)-1), cv::Vec3b(255, 0, 0), 1);
+      // visualize it 
+      title.append(std::to_string(width_small)).append("x").append(std::to_string(height_small));
+      cv::imshow(title, small_vis);
+      //cv::waitKey(1);
+      //std::cout << "crop: " << small_vis.cols << "x" << small_vis.rows << std::endl;
+    }
+
+    //////////////////////////////////
+    // crop out upper part
+    cv::Mat crop_vis, crop_met;
+    //cv::Rect crop_region(0, int(height*2/5), width, int(height*3/5));
+    cv::Rect crop_region(0, 0, width_small, int(height_small/2));
+    crop_vis = small_vis(crop_region);
+    crop_met = small_met(crop_region);
+    // update resolution values
+    height = crop_vis.rows;
+    width = crop_vis.cols;
+    int sliceWidth = (int) (crop_vis.cols / SCANNING_GRANULARITY);
+
+    if(GRAPHICAL_USER_INTERFACE)
+    {
+      // visualize slices
+      //std::cout << "width: " << crop_vis.cols << ", SCANNING_GRANULARITY: " << SCANNING_GRANULARITY << std::endl;
+      for(int s = 0; s <= SCANNING_GRANULARITY; s++)
+      {
+        int x = s * sliceWidth;
+        //std::cout << "s: " << s << ", x: " << x << ", sliceWidth: " << sliceWidth << std::endl;
+        cv::line(crop_vis, cv::Point(x, 0), cv::Point(x, height), cv::Scalar(150,150,150), 1, cv::LINE_4);
+      }
+      // visualize it 
+      title = "";
+      title.append(std::to_string(width)).append("x").append(std::to_string(height));
+      cv::imshow(title, crop_vis);
       //cv::waitKey(30);
-      //std::cout << "original: " << depth_vis.cols << "x" << depth_vis.rows << std::endl;
-      
+      //std::cout << "crop: " << crop_vis.cols << "x" << crop_vis.rows << std::endl;
+      //return;
+    }
 
-      //////////////////////////////////
-      // resize into a smaller 20% image
-      cv::Mat small_vis, small_met;      
-      int height = depth_vis.rows;
-      int width = depth_vis.cols;
-      small_vis = resizeFramePercentage(depth_vis, WINDOW_OUTPUT_PERCENTAGE); //resizeFrameWidth(depth_vis, 155);
-      small_met = resizeFramePercentage(depth_met, WINDOW_OUTPUT_PERCENTAGE); //resizeFrameWidth(depth_met, 155);
-      int height_small = small_vis.rows;
-      int width_small = small_vis.cols;
+    ////////////////////////////////////
+    // handle stuck rover case
+    if(stuck)
+    {
+      //std::cout << "I AM IN STUCK !!!" << std::endl;
+      Centroid winner;
+      winner.y = (int)height/2;
+      winner.x = (int)width/2;
 
-      std::string title = "";
-
-      if(GRAPHICAL_USER_INTERFACE)
+      // drive backward
+      if (count_backward < backwardFrames)
       {
-        // visualize rectangle
-        cv::rectangle(small_vis, cv::Point(0,0), cv::Point(width_small-1, int(height_small/2)-1), cv::Vec3b(255, 0, 0), 1);
-        // visualize it 
-        title.append(std::to_string(width_small)).append("x").append(std::to_string(height_small));
-        cv::imshow(title, small_vis);
-        cv::waitKey(30);
-        //std::cout << "crop: " << small_vis.cols << "x" << small_vis.rows << std::endl;
+        if(NORMAL_SPEED > 0) NORMAL_SPEED = -NORMAL_SPEED; // invert speed
+        if (VERBOSE_LOG)
+          ROS_INFO_STREAM("...BACKWARD");
       }
-
-      //////////////////////////////////
-      // crop out upper part
-      cv::Mat crop_vis, crop_met;
-      //cv::Rect crop_region(0, int(height*2/5), width, int(height*3/5));
-      cv::Rect crop_region(0, 0, width_small, int(height_small/2));
-      crop_vis = small_vis(crop_region);
-      crop_met = small_met(crop_region);
-      // update resolution values
-      height = crop_vis.rows;
-      width = crop_vis.cols;
-      int sliceWidth = (int) (crop_vis.cols / SCANNING_GRANULARITY);
-
-      if(GRAPHICAL_USER_INTERFACE)
+      if(count_backward >= backwardFrames && count_spinning <= spinningFrames) // stop backward 
       {
-        // visualize slices
-        //std::cout << "width: " << crop_vis.cols << ", SCANNING_GRANULARITY: " << SCANNING_GRANULARITY << std::endl;
-        for(int s = 0; s <= SCANNING_GRANULARITY; s++)
+        // spinning
+        if(NORMAL_SPEED < 0) NORMAL_SPEED = -NORMAL_SPEED; // restore speed
+        winner.y = -1; winner.x = -1;
+        if(count_spinning == spinningFrames) // exit stuck
         {
-          int x = s * sliceWidth;
-          //std::cout << "s: " << s << ", x: " << x << ", sliceWidth: " << sliceWidth << std::endl;
-          cv::line(crop_vis, cv::Point(x, 0), cv::Point(x, height), cv::Scalar(150,150,150), 1, cv::LINE_4);
-        }
-
-        // visualize it 
-        title = "";
-        title.append(std::to_string(width)).append("x").append(std::to_string(height));
-        cv::imshow(title, crop_vis);
-        cv::waitKey(30);
-        //std::cout << "crop: " << crop_vis.cols << "x" << crop_vis.rows << std::endl;
-        //return;
-      }
-
-      ////////////////////////////////////
-      // handle stuck rover case
-      if(stuck)
-      {
-        //std::cout << "I AM IN STUCK !!!" << std::endl;
-        Centroid winner;
-        winner.y = (int)height/2;
-        winner.x = (int)width/2;
-
-        // drive backward
-        if (count_backward < backwardFrames)
-        {
-          if(NORMAL_SPEED > 0) NORMAL_SPEED = -NORMAL_SPEED; // invert speed
-          if (VERBOSE_LOG)
-            ROS_INFO_STREAM("...BACKWARD");
-        }
-
-        if(count_backward >= backwardFrames && count_spinning <= spinningFrames) // stop backward 
-        {
-          // spinning
-          if(NORMAL_SPEED < 0) NORMAL_SPEED = -NORMAL_SPEED; // restore speed
-          winner.y = -1;
-          winner.x = -1;
-
-          if(count_spinning == spinningFrames) // exit stuck
-          {
             std::cout << std::endl << "stuck FALSE!!! " << std::endl; 
             count_backward = -1;
             count_spinning = -1;
-
             for(int d = 0; d < stuckFrames; d++)
-              depthMapAvgBuffer[d] = 0;
-
+                depthMapAvgBuffer[d] = 0;
             winner.y = (int)height/2;
             winner.x = (int)width/2;        
             stuck = false;
-          }
-
-          count_spinning++;
         }
-        
-        count_backward++;
-
-        std::cout << "count_backward: " << count_backward << ", count_spinning: " << count_spinning << std::endl;
-        move_robot(height, width, winner.x, winner.y, NORMAL_SPEED, NORMAL_SPEED);
-        return;
+        count_spinning++;
       }
+      count_backward++;
+      //std::cout << "count_backward: " << count_backward << ", count_spinning: " << count_spinning << std::endl;
+      move_robot(height, width, winner.x, winner.y, NORMAL_SPEED, NORMAL_SPEED);
 
+      return;
+    }
 
-      /////////////////////////////////////
-      // Kalman filter Kv = Sv * (ratio) + Kv * (1-ratio)
-      //averaged = ((averaged * (FILTER_WINDOW_SIZE -1)) + value) / FILTER_WINDOW_SIZE;
-      //std::cout << "avg distance: " << value << " ( " << averaged  << ")" <<  std::endl;
+    /////////////////////////////////////
+    // Kalman filter Kv = Sv * (ratio) + Kv * (1-ratio)
+    //averaged = ((averaged * (FILTER_WINDOW_SIZE -1)) + value) / FILTER_WINDOW_SIZE;
+    //std::cout << "avg distance: " << value << " ( " << averaged  << ")" <<  std::endl;
 
+    /////////////////////////////////////
+    // Moving Average Filter
+    Scan scan = scanFrame(crop_met);
 
-      /////////////////////////////////////
-      // Moving Average Filter
-      Scan scan = scanFrame(crop_met);
+    std::string scanString = "";
+    float closestValueL = 1000.0f;
+    float farthestValueL = 0.0f;
+    float closestValueR = 1000.0f;
+    float farthestValueR = 0.0f;      
+    //float filteredSlicesAvgSum = 0;
+    int blackPixTotalCount = 0;
+    int leftGrayPixTotalCount = 0;
+    int rightGrayPixTotalCount = 0;
 
-      std::string scanString = "";
-      float closestValueL = 1000.0f;
-      float farthestValueL = 0.0f;
-      float closestValueR = 1000.0f;
-      float farthestValueR = 0.0f;      
-
-      //float filteredSlicesAvgSum = 0;
-      int blackPixTotalCount = 0;
-      int leftGrayPixTotalCount = 0;
-      int rightGrayPixTotalCount = 0;
-
-      for(int s = 0; s < SCANNING_GRANULARITY; s++){
-        valuesSums[s] -= valuesBuffer[s][indexes[s]]; // remove the oldest value entry
-        valuesBuffer[s][indexes[s]] = scan.slicesAvg[s]; // add the newest value
-        valuesSums[s] += scan.slicesAvg[s]; // add the newest value to the sum
-        indexes[s] = (indexes[s]+1) % FILTER_WINDOW_SIZE; // update index
-        scan.filteredSlicesAvg[s] = valuesSums[s] / FILTER_WINDOW_SIZE; // evaluate the filtered value
+    for(int s = 0; s < SCANNING_GRANULARITY; s++){
+      valuesSums[s] -= valuesBuffer[s][indexes[s]]; // remove the oldest value entry
+      valuesBuffer[s][indexes[s]] = scan.slicesAvg[s]; // add the newest value
+      valuesSums[s] += scan.slicesAvg[s]; // add the newest value to the sum
+      indexes[s] = (indexes[s]+1) % FILTER_WINDOW_SIZE; // update index
+      scan.filteredSlicesAvg[s] = valuesSums[s] / FILTER_WINDOW_SIZE; // evaluate the filtered value
         
-        // keep track of the total number of black pixels
-        blackPixTotalCount += scan.blackPixelCount[s];
+      // keep track of the total number of black pixels
+      blackPixTotalCount += scan.blackPixelCount[s];
 
-        // keep track of the left/right number of gray pixels
-        if( s > NUMBER_OF_SKIPPED_SIDE_BANDS && s < (int)(SCANNING_GRANULARITY / 2) )
-        { 
-          // left part
-          leftGrayPixTotalCount += scan.grayPixelCount[s]; 
-          if(scan.filteredSlicesAvg[s] > farthestValueL){ scan.farthestIndexL = s; farthestValueL = scan.filteredSlicesAvg[s];}
-          if(scan.filteredSlicesAvg[s] < closestValueL){ scan.closestIndexL = s; closestValueL = scan.filteredSlicesAvg[s];}
-        }
-        else if( s > ((int)(SCANNING_GRANULARITY / 2)) && s < (SCANNING_GRANULARITY - NUMBER_OF_SKIPPED_SIDE_BANDS - 1) )
-        {
-          rightGrayPixTotalCount += scan.grayPixelCount[s];
-          if(scan.filteredSlicesAvg[s] > farthestValueR){ scan.farthestIndexR = s; farthestValueR = scan.filteredSlicesAvg[s];}
-          if(scan.filteredSlicesAvg[s] < closestValueR){ scan.closestIndexR = s; closestValueR = scan.filteredSlicesAvg[s];}          
-        }
-
-        // update closes and farthest indices
-        //if(scan.filteredSlicesAvg[s] > farthestValue){ scan.farthestIndex = s; farthestValue = scan.filteredSlicesAvg[s];}
-        //if(scan.filteredSlicesAvg[s] < closestValue){ scan.closestIndex = s; closestValue = scan.filteredSlicesAvg[s];}
-        
-        scanString.append(std::to_string(scan.filteredSlicesAvg[s]));
-        if(s < (SCANNING_GRANULARITY - 1)) scanString.append(" | ");
+      // keep track of the left/right number of gray pixels
+      if( s > NUMBER_OF_SKIPPED_SIDE_BANDS && s < (int)(SCANNING_GRANULARITY / 2) )
+      { 
+        // left part
+        leftGrayPixTotalCount += scan.grayPixelCount[s]; 
+        if(scan.filteredSlicesAvg[s] > farthestValueL){ scan.farthestIndexL = s; farthestValueL = scan.filteredSlicesAvg[s];}
+        if(scan.filteredSlicesAvg[s] < closestValueL){ scan.closestIndexL = s; closestValueL = scan.filteredSlicesAvg[s];}
       }
-      //ROS_INFO_STREAM(scanString);
-
-
-      //////////////////////////////////////
-      // check if the rover is STUCK !!
-      // evaluate the percentage of black frame pixels
-      float blackPixFramePercentage = blackPixTotalCount*100.0/(scan.goodPixCountLeft + scan.goodPixCountRight);
-      // evaluate the percentage of gray left and right pixels
-      // std::cout << "leftGrayPixTotalCount: " << leftGrayPixTotalCount << ", scan.goodPixCountLeft: " << scan.goodPixCountLeft << std::endl;
-      // std::cout << "rightGrayPixTotalCount: " << rightGrayPixTotalCount << ", scan.goodPixCountRight: " << scan.goodPixCountRight << std::endl;
-
-      float leftGrayPercentage = leftGrayPixTotalCount*100.0/scan.goodPixCountLeft;
-      float rightGrayPercentage = rightGrayPixTotalCount*100.0/scan.goodPixCountRight;
-
-      // std::cout << "BLACK: " << blackPixFramePercentage 
-      //     << ", GRAY LEFT: " << leftGrayPercentage
-      //     << ", GRAY RIGHT: " << rightGrayPercentage << std::endl;
-
-      // check if we are stuck
-      if(blackPixFramePercentage > BLACK_MAX_PIXEL_PERCENTAGE)
+      else if( s > ((int)(SCANNING_GRANULARITY / 2)) && s < (SCANNING_GRANULARITY - NUMBER_OF_SKIPPED_SIDE_BANDS - 1) )
       {
-        ROS_WARN_STREAM("THE ROVER IS STUCK !!! (BLACK % " << blackPixFramePercentage << ")" );
-        stuck = true;
-        return;
+        rightGrayPixTotalCount += scan.grayPixelCount[s];
+        if(scan.filteredSlicesAvg[s] > farthestValueR){ scan.farthestIndexR = s; farthestValueR = scan.filteredSlicesAvg[s];}
+        if(scan.filteredSlicesAvg[s] < closestValueR){ scan.closestIndexR = s; closestValueR = scan.filteredSlicesAvg[s];}          
       }
+
+      // update closes and farthest indices
+      //if(scan.filteredSlicesAvg[s] > farthestValue){ scan.farthestIndex = s; farthestValue = scan.filteredSlicesAvg[s];}
+      //if(scan.filteredSlicesAvg[s] < closestValue){ scan.closestIndex = s; closestValue = scan.filteredSlicesAvg[s];}
+        
+      scanString.append(std::to_string(scan.filteredSlicesAvg[s]));
+      if(s < (SCANNING_GRANULARITY - 1)) scanString.append(" | ");
+    }
+    //ROS_INFO_STREAM(scanString);
+
+
+    //////////////////////////////////////
+    // check if the rover is STUCK !!
+    // evaluate the percentage of black frame pixels
+    float blackPixFramePercentage = blackPixTotalCount*100.0/(scan.goodPixCountLeft + scan.goodPixCountRight);
+    // evaluate the percentage of gray left and right pixels
+    // std::cout << "leftGrayPixTotalCount: " << leftGrayPixTotalCount << ", scan.goodPixCountLeft: " << scan.goodPixCountLeft << std::endl;
+    // std::cout << "rightGrayPixTotalCount: " << rightGrayPixTotalCount << ", scan.goodPixCountRight: " << scan.goodPixCountRight << std::endl;
+
+    float leftGrayPercentage = leftGrayPixTotalCount*100.0/scan.goodPixCountLeft;
+    float rightGrayPercentage = rightGrayPixTotalCount*100.0/scan.goodPixCountRight;
+
+    // std::cout << "BLACK: " << blackPixFramePercentage 
+    //     << ", GRAY LEFT: " << leftGrayPercentage
+    //     << ", GRAY RIGHT: " << rightGrayPercentage << std::endl;
+
+    // check if we are stuck
+    if(blackPixFramePercentage > BLACK_MAX_PIXEL_PERCENTAGE)
+    {
+      ROS_WARN_STREAM("THE ROVER IS STUCK !!! (BLACK % " << blackPixFramePercentage << ")" );
+      stuck = true;
+      return;
+    }
       
-
-      if(GRAPHICAL_USER_INTERFACE)
-      {
-        ////////////////////////////////      
-        // visualize farthest & closest slice rectangle
-        cv::rectangle(crop_vis, cv::Point(scan.farthestIndexL*sliceWidth, 0), 
-            cv::Point(scan.farthestIndexL*sliceWidth+sliceWidth, height), cv::Vec3b(255, 255, 255), -1);
-        cv::rectangle(crop_vis, cv::Point(scan.farthestIndexR*sliceWidth, 0), 
-            cv::Point(scan.farthestIndexR*sliceWidth+sliceWidth, height), cv::Vec3b(255, 255, 255), -1);          
-        //cv::rectangle(crop_vis, cv::Point(scan.closestIndex*sliceWidth, 0), 
-        //    cv::Point(scan.closestIndex*sliceWidth+sliceWidth, height), cv::Vec3b(10, 10, 10), -1);
-        cv::imshow(title, crop_vis);
-        cv::waitKey(30);
-      }
-
-
-      /////////////////////////////////
-      // centroid simulation
-      float linear = NORMAL_SPEED;
-      float angular = NORMAL_SPEED;      
-
-      Centroid winner;
-      winner.y = (int)height/2;
-
-      // int stearingValue = 0;
-      // if(scan.farthestIndex < SCANNING_GRANULARITY / 2)
-      //   stearingValue = std::abs(scan.farthestIndex - SCANNING_GRANULARITY / 2);
-      // else
-      //   stearingValue = scan.farthestIndex - SCANNING_GRANULARITY / 2; 
-      
-      //int sliceWidth = (int)(width / SCANNING_GRANULARITY);
-      int centroid_x_L = scan.farthestIndexL * sliceWidth + (int)(sliceWidth / 2);
-      int centroid_x_R = scan.farthestIndexR * sliceWidth + (int)(sliceWidth / 2);
-      // int leftIndex = 7; //(int) (SCANNING_GRANULARITY / 4);
-      // int rightIndex = 23; //(int) (SCANNING_GRANULARITY / 2) + leftIndex;
-
-
-      ///////////////////////////////////
-      // guidance directions
-      if(wall)
-      {
-        if (VERBOSE_LOG)
-        {    
-          ROS_WARN_STREAM(std::setprecision(2) << "WALL         L_gray: " << leftGrayPercentage << "% (" 
-                  << leftGrayPixTotalCount << ")\tR_gray: " << rightGrayPercentage << "% (" << rightGrayPixTotalCount << ")");
-        }
-          
-        winner.x = -1;
-        winner.y = -1;
-        //std::cout << "THE ROVER IS STUCK !!!" << std::endl;
-        //stuck = true;
-      }
-    
-      if( leftGrayPercentage < GRAY_MAX_PIXEL_PERCENTAGE && rightGrayPercentage < GRAY_MAX_PIXEL_PERCENTAGE)
-      {
-        if (VERBOSE_LOG)
-        {
-          ROS_INFO_STREAM(std::setprecision(2) << "FORWARD      L_gray: " << leftGrayPercentage << "% (" 
-                  << leftGrayPixTotalCount << ")\tR_gray: " << rightGrayPercentage << "% (" << rightGrayPixTotalCount << ")");
-        }
-
-        linear = 1;
-        winner.x = (int)width/2;
-        wall = false;
-        rand_direction_is_set = false;
-      }      
-      else if( !wall && leftGrayPercentage < GRAY_MAX_PIXEL_PERCENTAGE && rightGrayPercentage > GRAY_MAX_PIXEL_PERCENTAGE)
-      {
-        if (VERBOSE_LOG)
-        {    
-          ROS_INFO_STREAM(std::setprecision(2) << "LEFT >>>>>>> L_gray: " << leftGrayPercentage << "% (" 
-                  << leftGrayPixTotalCount << ")\tR_gray: " << rightGrayPercentage << "% (" << rightGrayPixTotalCount << ")");
-        }
-       
-        winner.x = centroid_x_L; //(int)width*2/9;
-      }
-      else if( !wall && leftGrayPercentage > GRAY_MAX_PIXEL_PERCENTAGE 
-          && rightGrayPercentage < GRAY_MAX_PIXEL_PERCENTAGE)
-      {
-        if (VERBOSE_LOG)
-        {    
-          ROS_INFO_STREAM(std::setprecision(2) << "RIGHT <<<<<< L_gray: " << leftGrayPercentage << "% (" 
-                  << leftGrayPixTotalCount << ")\tR_gray: " << rightGrayPercentage << "% (" << rightGrayPixTotalCount << ")");
-        }
-        
-        winner.x = centroid_x_R; //(int)width*7/9;
-      }
-      else
-      {
-        if(scan.filteredSlicesAvg[15] <= IMPACT_DISTANCE) 
-          wall = true; 
-        
-        else 
-        {
-          if(!rand_direction_is_set){
-            goRight = rand() % 2 == 1;
-            rand_direction_is_set = true; 
-          }
-          
-          //if(leftGrayPercentage > rightGrayPercentage)
-          if(goRight)
-            winner.x = centroid_x_R;
-          else
-            winner.x = centroid_x_L; 
-
-          ROS_WARN_STREAM("cazzoculo figa random is: " << goRight);
-          move_robot(height, width, winner.x, winner.y, linear, NORMAL_SPEED);
-          
-          return;
-        }
-        
-
-        if (VERBOSE_LOG)
-        {
-          ROS_WARN_STREAM(std::setprecision(2) << "STOP         L_gray: " << leftGrayPercentage << "% (" 
-                  << leftGrayPixTotalCount << ")\tR_gray: " << rightGrayPercentage << "% (" << rightGrayPixTotalCount << ")");
-        }
-
-        winner.x = -1;
-        winner.y = -1;
-      }  
-
-      // move the robot
-      move_robot(height, width, winner.x, winner.y, linear, NORMAL_SPEED);
+    if(GRAPHICAL_USER_INTERFACE)
+    {
+      ////////////////////////////////      
+      // visualize farthest & closest slice rectangle
+      cv::rectangle(crop_vis, cv::Point(scan.farthestIndexL*sliceWidth, 0), 
+          cv::Point(scan.farthestIndexL*sliceWidth+sliceWidth, height), cv::Vec3b(255, 255, 255), -1);
+      cv::rectangle(crop_vis, cv::Point(scan.farthestIndexR*sliceWidth, 0), 
+          cv::Point(scan.farthestIndexR*sliceWidth+sliceWidth, height), cv::Vec3b(255, 255, 255), -1);          
+      //cv::rectangle(crop_vis, cv::Point(scan.closestIndex*sliceWidth, 0), 
+      //    cv::Point(scan.closestIndex*sliceWidth+sliceWidth, height), cv::Vec3b(10, 10, 10), -1);
+      cv::imshow(title, crop_vis);
       //cv::waitKey(30);
     }
+
+    /////////////////////////////////
+    // centroid simulation
+    float linear = NORMAL_SPEED;
+    float angular = NORMAL_SPEED;      
+    Centroid winner;
+    winner.y = (int)height/2;
+
+    // int stearingValue = 0;
+    // if(scan.farthestIndex < SCANNING_GRANULARITY / 2)
+    //   stearingValue = std::abs(scan.farthestIndex - SCANNING_GRANULARITY / 2);
+    // else
+    //   stearingValue = scan.farthestIndex - SCANNING_GRANULARITY / 2; 
+      
+    //int sliceWidth = (int)(width / SCANNING_GRANULARITY);
+    int centroid_x_L = scan.farthestIndexL * sliceWidth + (int)(sliceWidth / 2);
+    int centroid_x_R = scan.farthestIndexR * sliceWidth + (int)(sliceWidth / 2);
+    // int leftIndex = 7; //(int) (SCANNING_GRANULARITY / 4);
+    // int rightIndex = 23; //(int) (SCANNING_GRANULARITY / 2) + leftIndex;
+
+
+    ///////////////////////////////////
+    // guidance directions
+    if(wall) {
+      if (VERBOSE_LOG){ ROS_WARN_STREAM(std::setprecision(2) << "WALL         L_gray: " << leftGrayPercentage << "% (" 
+                << leftGrayPixTotalCount << ")\tR_gray: " << rightGrayPercentage << "% (" << rightGrayPixTotalCount << ")"); }
+          
+      winner.x = -1; winner.y = -1;
+      //std::cout << "THE ROVER IS STUCK !!!" << std::endl;
+      //stuck = true;
+    }
+    
+    if( leftGrayPercentage < GRAY_MAX_PIXEL_PERCENTAGE && rightGrayPercentage < GRAY_MAX_PIXEL_PERCENTAGE) {
+      if (VERBOSE_LOG){ ROS_INFO_STREAM(std::setprecision(2) << "FORWARD      L_gray: " << leftGrayPercentage << "% (" 
+                << leftGrayPixTotalCount << ")\tR_gray: " << rightGrayPercentage << "% (" << rightGrayPixTotalCount << ")"); }
+
+      linear = 1;
+      winner.x = (int)width/2;
+      wall = false;
+      rand_direction_is_set = false;
+
+    } else if( !wall && leftGrayPercentage < GRAY_MAX_PIXEL_PERCENTAGE && rightGrayPercentage > GRAY_MAX_PIXEL_PERCENTAGE) {
+      if (VERBOSE_LOG) { ROS_INFO_STREAM(std::setprecision(2) << "LEFT >>>>>>> L_gray: " << leftGrayPercentage << "% (" 
+                << leftGrayPixTotalCount << ")\tR_gray: " << rightGrayPercentage << "% (" << rightGrayPixTotalCount << ")"); }
+      winner.x = centroid_x_L; //(int)width*2/9;
+
+    } else if( !wall && leftGrayPercentage > GRAY_MAX_PIXEL_PERCENTAGE && rightGrayPercentage < GRAY_MAX_PIXEL_PERCENTAGE) {
+      if (VERBOSE_LOG) { ROS_INFO_STREAM(std::setprecision(2) << "RIGHT <<<<<< L_gray: " << leftGrayPercentage << "% (" 
+                << leftGrayPixTotalCount << ")\tR_gray: " << rightGrayPercentage << "% (" << rightGrayPixTotalCount << ")"); }
+      winner.x = centroid_x_R; //(int)width*7/9;
+
+    } else {
+      if(scan.filteredSlicesAvg[15] <= IMPACT_DISTANCE) 
+          wall = true;
+      else 
+      {
+        if(!rand_direction_is_set){
+          goRight = rand() % 2 == 1;
+          rand_direction_is_set = true; 
+        }
+        
+        //if(leftGrayPercentage > rightGrayPercentage)
+        if(goRight) winner.x = centroid_x_R; else winner.x = centroid_x_L; 
+
+        //ROS_WARN_STREAM("cazzoculo figa random is: " << goRight);
+        move_robot(height, width, winner.x, winner.y, linear, NORMAL_SPEED);
+          
+        return;
+      }
+        
+      if (VERBOSE_LOG) {
+        ROS_WARN_STREAM(std::setprecision(2) << "STOP         L_gray: " << leftGrayPercentage << "% (" 
+                << leftGrayPixTotalCount << ")\tR_gray: " << rightGrayPercentage << "% (" << rightGrayPixTotalCount << ")"); }
+
+      winner.x = -1; winner.y = -1;
+    }  
+
+    // move the robot
+    move_robot(height, width, winner.x, winner.y, linear, NORMAL_SPEED);
+    cv::waitKey(1);
   }
 
   /**
@@ -690,3 +633,4 @@ int main(int argc, char **argv)
 
   return 0;
 }
+

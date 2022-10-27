@@ -1,24 +1,25 @@
 <launch>
-    file="$(find realsense2_camera)/launch/rs_camera.launch">
+    <include file="$(find realsense2_camera)/launch/rs_camera.launch">
     
     <arg name="camera" 	value="d435i_camera"/>
-    <!--<arg name="initial_reset" value="true"/>-->
+    <arg name="initial_reset" value="true"/>
     
     <!--<arg name="linear_accel_cov" value="1.0"/>-->        
     
-    <!--<arg name="unite_imu_method" value="linear_interpolation"/>-->
-    <!--<arg name="enable_gyro" value="true"/>-->
-    <!--<arg name="enable_accel" value="true"/>-->
-    <arg name="gyro_fps"            value="400"/> 
-    <arg name="accel_fps"           value="250"/>
+    <arg name="unite_imu_method" value="linear_interpolation"/>
+    <arg name="enable_gyro" value="true"/>
+    <arg name="enable_accel" value="true"/>
+    <arg name="gyro_fps" value="400"/> 
+    <arg name="accel_fps" value="250"/>
 
-    <!--<arg name="publish_tf" value="true"/>-->
-    <!--<arg name="tf_prefix" value="$(arg camera)"/>-->
+    <arg name="publish_tf" value="true"/>
+    <arg name="tf_prefix" value="$(arg camera)"/>
+    <arg name="align_depth" value="true" />
 
     <!--<arg name="depth_width"         value="848"/>-->
     <!--<arg name="depth_height"        value="480"/>-->
     <!--<arg name="color_width"         value="848"/>-->
     <!--<arg name="color_height"        value="480"/>-->
-    <arg name="depth_fps"           value="15"/> 
-    <arg name="color_fps"           value="15"/> 
+    <arg name="depth_fps" value="15"/> 
+    <arg name="color_fps" value="15"/> 
 </launch>    
