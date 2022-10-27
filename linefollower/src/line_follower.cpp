@@ -12,10 +12,10 @@
 
 
 const bool VERBOSE_LOG = 0;
-const bool GRAPHICAL_USER_INTERFACE = 1;
-const float WINDOW_OUTPUT_PERCENTAGE = 30;
+const bool GRAPHICAL_USER_INTERFACE = 0;
+const float WINDOW_OUTPUT_PERCENTAGE = 50;
 
-float NORMAL_SPEED = 0.5f;
+float NORMAL_SPEED = 0.3f;
 const float FACTOR_LINEAR = 0.001f; // 0.001f
 const float FACTOR_ANGULAR = 0.2f; // 0.2f
 
@@ -99,7 +99,11 @@ public:
    */
   ~LineFollower()
   {
-    //cv::destroyWindow("view");
+    cv::destroyWindow("crop");
+    cv::destroyWindow("hsv");
+    cv::destroyWindow("mask");
+    cv::destroyWindow("masked_image");
+    cv::destroyWindow("contours");
   }
 
   /**
@@ -107,6 +111,7 @@ public:
    */
   void imageCallback(const sensor_msgs::ImageConstPtr& msg)
   {
+
     if (msg == NULL) return;
     if (msg->encoding != "bgr8") return;
     if (evenFrames) { evenFrames = 0; return; } else { evenFrames = 1; } // skip even frames
@@ -150,10 +155,11 @@ public:
     if(GRAPHICAL_USER_INTERFACE)
     {
       cv::imshow("crop", crop_img);
-      cv::waitKey(1);
+      //cv::waitKey(1);
     }
 
 
+    
     //////////////////////////////////
     // Convert the image from RGB to HSV (more stable versus lighting conditions)
     cv::Mat hsv;
@@ -162,9 +168,11 @@ public:
     if(GRAPHICAL_USER_INTERFACE)
     {
       cv::imshow("hsv", hsv);
-      cv::waitKey(1);
+      //cv::waitKey(1);
     }
 
+
+    
     //////////////////////////////////
     // Convert rgb color to track to hsv and find the lower and upper values
     cv::Mat hsvToTrack = m_rgbToTrack.toHsv();
@@ -193,17 +201,18 @@ public:
     if(GRAPHICAL_USER_INTERFACE)
     {
       cv::imshow("mask", mask);
-      cv::waitKey(1);
+      //cv::waitKey(1);
     }
 
 
+    
     //////////////////////////////////
     // convert to 3 channels
     cv::cvtColor(mask, mask, CV_GRAY2BGR);
-    /*std::cout << "crop size: " << crop_img.cols << ", " << crop_img.rows << std::endl;
-    std::cout << "crop type: " << crop_img.type() << std::endl;
-    std::cout << "mask size: " << mask.cols << ", " << mask.rows << std::endl;
-    std::cout << "mask type: " << mask.type() << std::endl;*/
+    //std::cout << "crop size: " << crop_img.cols << ", " << crop_img.rows << std::endl;
+    //std::cout << "crop type: " << crop_img.type() << std::endl;
+    //std::cout << "mask size: " << mask.cols << ", " << mask.rows << std::endl;
+    //std::cout << "mask type: " << mask.type() << std::endl;
 
     //////////////////////////////////
     // Bitwise-AND mask and original image
@@ -213,9 +222,11 @@ public:
     if(GRAPHICAL_USER_INTERFACE)
     {
       cv::imshow("masked_image", masked_image);
-      cv::waitKey(1);
+      //cv::waitKey(1);
     }
 
+
+    
     //////////////////////////////////
     // Detect the contours
     //Prepare the image for findContours
@@ -225,8 +236,7 @@ public:
     std::vector<std::vector<cv::Point>> contours;
     cv::Point winner(-1, -1);
     cv::findContours(mask.clone(), contours, CV_RETR_CCOMP, CV_CHAIN_APPROX_TC89_L1);
-    if (VERBOSE_LOG)
-      ROS_INFO_STREAM("  contours: " << contours.size());
+    if (VERBOSE_LOG) ROS_INFO_STREAM("  contours: " << contours.size());
 
     if (contours.size() > 0)
     {
@@ -243,8 +253,8 @@ public:
         }
         if(GRAPHICAL_USER_INTERFACE)
         {
-          cv::imshow("Contours", contourImage);
-          cv::waitKey(1);
+          cv::imshow("contours", contourImage);
+          //cv::waitKey(1);
         }
       }
     }
@@ -252,10 +262,13 @@ public:
     {
       // move the robot
       move_robot(height, width, winner.x, winner.y, speed, 0.3f);
-      
+      cv::waitKey(1); 
+
       return;
     }
 
+
+    
     //////////////////////////////////
     // Find the centers of the contours
     std::vector<cv::Moments> mu(contours.size());
@@ -278,6 +291,7 @@ public:
     if (VERBOSE_LOG)
       for(int i=0; i<centers.size(); i++)
         ROS_INFO_STREAM("  center [" << centers[i].x << ", " << centers[i].y << "]");
+    
     
     //////////////////////////////////
     // find the most centered & close centroid
@@ -317,8 +331,9 @@ public:
         ROS_INFO_STREAM("    centroid [" << winner.x << ", " << winner.y << "]");
     }
 
-    // move the robot
     move_robot(height, width, winner.x, winner.y, speed, 0.3f);
+
+    cv::waitKey(1); 
   }
 
   /**
@@ -380,6 +395,7 @@ int main(int argc, char **argv)
   struct RgbColor rgbToTrack{45, 149, 62};
   LineFollower lf(argc, argv, rgbToTrack, 40.0f);
   lf.loop();
+  cv::destroyWindow("view");
 
   return 0;
 }
