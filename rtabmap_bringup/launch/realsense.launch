@@ -1,0 +1,29 @@
+<launch>
+	<!-- CONFIGURATION ARGS -->
+	<arg name="camera" value="camera"/>
+	
+	<!-- CAMERA NODE -->    
+    <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+    <arg name="align_depth" value="true"/>
+    <arg name="linear_accel_cov" value="1.0"/>
+    <arg name="unite_imu_method" value="copy"/>
+     
+    <arg name="enable_gyro" value="true"/> 
+    <arg name="enable_accel" value="true"/>
+    <arg name="camera" value="$(arg camera)"/>       
+    <arg name="tf_prefix" value="$(arg camera)"/>
+    <arg name="initial_reset" value="true"/>       
+
+<!--
+    <arg name="publish_tf" value="true"/>   
+    <arg name="depth_width" value="424"/>
+    <arg name="color_width" value="424"/>
+    <arg name="depth_height" value="240"/>
+    <arg name="color_height" value="240"/>
+    <arg name="depth_fps" value="15"/>									
+    <arg name="color_fps" value="15"/>     
+    <arg name="gyro_fps" value="-1"/> 
+    <arg name="accel_fps" value="-1"/> 			                          
+-->      
+  </include>
+</launch>  
