@@ -1,12 +1,14 @@
 #!/bin/bash
 
-if [ "$#" -ne 2 ]; then 
-    echo "Usage: network_set.sh host_ip master"
+if [ "$#" -ne 1 ]; then 
+    echo "Usage: network_set.sh master"
     exit 2
 fi
 
-host_ip=$1
-master=$2
+
+host=`ip a |grep 192.168. | awk '{print $2}'`
+host_ip=${host::-3}
+master=$1
 
 hostname=$(hostname)
 master_ip=`nslookup $master | grep 192.168 | cut -d' ' -f2-`
