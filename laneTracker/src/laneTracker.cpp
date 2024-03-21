@@ -35,7 +35,7 @@ struct RgbColor
   }
 };
 
-class LineFollower
+class LaneTracker
 {
 private:
   struct RgbColor m_rgbToTrack;
@@ -59,10 +59,10 @@ public:
   /**
    * constructor
    */
-  LineFollower(int argc, char **argv, RgbColor rgbToTrack, float colorErrorPercentage)
+  LaneTracker(int argc, char **argv, RgbColor rgbToTrack, float colorErrorPercentage)
       : it(nh), m_rgbToTrack(rgbToTrack), m_colorErrorPercentage(colorErrorPercentage)
   {
-    if(VERBOSE_LOG) std::cout << "LineFollower()" << std::endl;
+    if(VERBOSE_LOG) std::cout << "LaneTracker()" << std::endl;
 
     speed = NORMAL_SPEED;
 
@@ -76,25 +76,25 @@ public:
      * You must call one of the versions of ros::init() before using any other
      * part of the ROS system.
      */
-    //ros::init(argc, argv, "lineFollower");
+    //ros::init(argc, argv, "LaneTracker");
 
     twist_msg.linear.x=twist_msg.linear.y=twist_msg.linear.z=0;
     twist_msg.angular.x=twist_msg.angular.y=twist_msg.angular.z=0;
 
     //cv::namedWindow("view");
 
-    sub = it.subscribe(LEO_CAMERA_TOPIC, 1, &LineFollower::imageCallback, this);
+    sub = it.subscribe(LEO_CAMERA_TOPIC, 1, &LaneTracker::imageCallback, this);
     cmd_vel_pub = nh.advertise<geometry_msgs::Twist>("/cmd_vel", 5);
     int rate = 25;
     ros::Rate loop_rate(rate);
 
-    if(VERBOSE_LOG) std::cout << "..LineFollower() DONE" << std::endl;
+    if(VERBOSE_LOG) std::cout << "..LaneTracker() DONE" << std::endl;
   }
 
   /**
    * destructor
    */
-  ~LineFollower()
+  ~LaneTracker()
   {
     cv::destroyWindow("crop");
     cv::destroyWindow("hsv");
@@ -358,9 +358,9 @@ int main(int argc, char **argv)
 {
   std::cout << "main()" << std::endl;
 
-  ros::init(argc, argv, "line_follower");
+  ros::init(argc, argv, "laneTracker");
   struct RgbColor rgbToTrack{45, 149, 62};
-  LineFollower lf(argc, argv, rgbToTrack, 40.0f);
+  LaneTracker lf(argc, argv, rgbToTrack, 40.0f);
   lf.loop();
 
   return 0;

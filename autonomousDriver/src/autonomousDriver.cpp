@@ -76,7 +76,7 @@ struct Scan
   }
 };
 
-class DepthFollower
+class AutonomousDriver
 {
 private:
   /**
@@ -110,10 +110,10 @@ public:
   /**
    * constructor
    */
-  DepthFollower(int argc, char **argv)
+  AutonomousDriver(int argc, char **argv)
       : it(nh)
   {
-    std::cout << "DepthFollower()" << std::endl;
+    std::cout << "AutonomousDriver()" << std::endl;
       
     evenFrames = true;
     stuck = false; wall = false;
@@ -134,17 +134,17 @@ public:
     twist_msg.linear.x=twist_msg.linear.y=twist_msg.linear.z=0;
     twist_msg.angular.x=twist_msg.angular.y=twist_msg.angular.z=0;
 
-    sub = it.subscribe(REALSENSE_CAMERA_DEPTH_TOPIC, 1, &DepthFollower::imageCallback, this);
+    sub = it.subscribe(REALSENSE_CAMERA_DEPTH_TOPIC, 1, &AutonomousDriver::imageCallback, this);
     cmd_vel_pub = nh.advertise<geometry_msgs::Twist>("/cmd_vel", 5);
     ros::Rate loop_rate(25);
 
-    std::cout << "..DepthFollower() DONE" << std::endl;
+    std::cout << "..AutonomousDriver() DONE" << std::endl;
   }
 
   /**
    * destructor
    */
-  ~DepthFollower()
+  ~AutonomousDriver()
   {
     //cv::destroyWindow("view");
   }
@@ -506,8 +506,8 @@ int main(int argc, char **argv)
 {
   std::cout << "main()" << std::endl;
 
-  ros::init(argc, argv, "depth_follower_start");
-  DepthFollower df(argc, argv);
+  ros::init(argc, argv, "autonomousDriver_start");
+  AutonomousDriver df(argc, argv);
   df.loop();
 
   return 0;
