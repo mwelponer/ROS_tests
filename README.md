@@ -1,29 +1,10 @@
-# README #
+# ROS test
+Copyright (C) 2022 Michele Welponer
 
-This README would normally document whatever steps are necessary to get your application up and running.
+## Autonomous Driving folder
 
-### What is this repository for? ###
+C++ code for Leo rover (https://www.leorover.tech/) autonomous driving in Robot Operating System (ROS https://www.ros.org/blog/why-ros/). The rover utilizes a Realsense depth-camera sensor to recognize obstacles and avoid them through the acquisition of few very simple rules.
 
-* Quick summary
-* Version
-* [Learn Markdown](https://bitbucket.org/tutorials/markdowndemo)
+## Lane Tracking folder
 
-### How do I get set up? ###
-
-* Summary of set up
-* Configuration
-* Dependencies
-* Database configuration
-* How to run tests
-* Deployment instructions
-
-### Contribution guidelines ###
-
-* Writing tests
-* Code review
-* Other guidelines
-
-### Who do I talk to? ###
-
-* Repo owner or admin
-* Other community or team contact
+C++ code for Leo rover (https://www.leorover.tech/) lane tracking in Robot Operating System (ROS https://www.ros.org/blog/why-ros/).
